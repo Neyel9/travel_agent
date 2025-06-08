@@ -1,6 +1,49 @@
+# Environment and secrets
 .env
-venv
-__pycache__
-chroma_db
-.gradio
-.langgraph_api
+*.env
+!.env.example
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Database and storage
+chroma_db/
+*.db
+*.sqlite
+
+# Application specific
+.gradio/
+.langgraph_api/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp

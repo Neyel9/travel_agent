@@ -34,10 +34,11 @@ class CLI:
         print("Enter your message:")
         
         while True:
-            user_input = input("> ").strip()
+            user_input = input("✈️ > ").strip()
             if user_input.lower() == 'quit':
                 break
 
+            print("🔍 Searching flights worldwide...")
             # Run the agent with streaming
             with Live('', console=self.console, vertical_overflow='visible') as live:
                 output_messages = []
