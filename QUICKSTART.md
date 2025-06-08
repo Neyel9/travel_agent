@@ -9,7 +9,6 @@ Get your worldwide travel agent running in 5 minutes!
 python setup_travel_agent.py
 
 # 2. Start the travel agent
-cd travel_agent
 streamlit run streamlit_ui.py
 
 # 3. Open your browser to http://localhost:8501
@@ -23,17 +22,15 @@ That's it! 🎉
 
 ### 1. Install Dependencies
 ```bash
-cd travel_agent
 pip install -r requirements.txt
-pip install aiohttp
 ```
 
 ### 2. Configure Environment
 ```bash
-# Copy the example file
+# Copy the example file (if it exists)
 cp .env.example .env
 
-# Edit .env with your API keys (optional)
+# Or create .env manually with your API keys
 nano .env
 ```
 
@@ -76,10 +73,10 @@ For real worldwide data, get these free API keys:
 | AviationStack | [Get Key](https://aviationstack.com/) | 1,000 calls/month |
 | RapidAPI Hotels | [Get Key](https://rapidapi.com/apidojo/api/hotels4/) | Free tier available |
 
-Add them to `travel_agent/.env`:
+Add them to `.env`:
 ```env
 WEATHER_API_KEY=your_key_here
-FLIGHT_API_KEY=your_key_here  
+FLIGHT_API_KEY=your_key_here
 HOTEL_API_KEY=your_key_here
 ```
 

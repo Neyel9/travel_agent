@@ -98,7 +98,7 @@ pip install aiohttp  # For API calls
 
 ### 🔑 **Configuration**
 
-Create a `.env` file in the `travel_agent` directory:
+Create a `.env` file in the root directory:
 
 ```env
 # LLM Configuration (Required)
@@ -170,17 +170,23 @@ Open your browser to `http://localhost:8501` and start planning! 🎉
 
 ### 📁 **Project Structure**
 ```
-travel_agent/
+ai-travel-agent/
 ├── agents/                    # AI agent definitions
 │   ├── info_gathering_agent.py   # Extracts travel details
 │   ├── flight_agent.py          # Flight search & recommendations
 │   ├── hotel_agent.py           # Hotel search & booking
 │   ├── activity_agent.py        # Weather-based activities
 │   └── final_planner_agent.py   # Trip synthesis
+├── extras/                    # CLI tools and additional resources
+│   ├── cli-sync.py              # Synchronous CLI interface
+│   ├── flight-cli.py           # Flight agent CLI with streaming
+│   └── *.png                   # Documentation images
 ├── agent_graph.py             # LangGraph workflow orchestration
 ├── streamlit_ui.py            # Web interface
 ├── utils.py                   # API integrations & utilities
 ├── test_apis.py              # API testing suite
+├── setup_travel_agent.py     # Automated setup script
+├── requirements.txt          # Complete dependency list
 └── .env                      # Your API keys (not tracked)
 ```
 
