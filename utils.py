@@ -52,12 +52,15 @@ def get_model():
 # API Configuration
 WEATHER_API_KEY = os.getenv('WEATHER_API_KEY')
 FLIGHT_API_KEY = os.getenv('FLIGHT_API_KEY')
+FLIGHT_API_SECRET = os.getenv('FLIGHT_API_SECRET')
+FLIGHT_API_PROVIDER = os.getenv('FLIGHT_API_PROVIDER', 'amadeus')
 HOTEL_API_KEY = os.getenv('HOTEL_API_KEY')
+HOTEL_API_PROVIDER = os.getenv('HOTEL_API_PROVIDER', 'rapidapi_booking')
 
 # API Base URLs
 WEATHER_BASE_URL = "http://api.openweathermap.org/data/2.5"
-FLIGHT_BASE_URL = "http://api.aviationstack.com/v1"
-HOTEL_BASE_URL = "https://hotels4.p.rapidapi.com"
+AMADEUS_BASE_URL = "https://test.api.amadeus.com"
+HOTEL_BASE_URL = "https://booking-com.p.rapidapi.com"
 
 async def get_weather_data(city: str, country_code: str = None) -> Dict[str, Any]:
     """Get weather data for a city using OpenWeatherMap API."""
@@ -90,36 +93,88 @@ async def get_weather_data(city: str, country_code: str = None) -> Dict[str, Any
     except Exception as e:
         return {"error": f"Weather API request failed: {str(e)}"}
 
-async def search_flights_api(origin: str, destination: str, date: str) -> List[Dict[str, Any]]:
-    """Search for flights using AviationStack API."""
-    if not FLIGHT_API_KEY:
-        return [{"error": "Flight API key not configured"}]
+async def get_amadeus_token() -> str:
+    """Get access token for Amadeus API."""
+    if not FLIGHT_API_KEY or not FLIGHT_API_SECRET:
+        return None
 
     try:
-        url = f"{FLIGHT_BASE_URL}/flights"
-        params = {
-            'access_key': FLIGHT_API_KEY,
-            'dep_iata': origin,
-            'arr_iata': destination,
-            'flight_date': date,
-            'limit': 10
+        url = f"{AMADEUS_BASE_URL}/v1/security/oauth2/token"
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+        data = {
+            'grant_type': 'client_credentials',
+            'client_id': FLIGHT_API_KEY,
+            'client_secret': FLIGHT_API_SECRET
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params) as response:
+            async with session.post(url, headers=headers, data=data) as response:
+                if response.status == 200:
+                    token_data = await response.json()
+                    return token_data.get('access_token')
+                else:
+                    return None
+    except Exception:
+        return None
+
+async def search_flights_api(origin: str, destination: str, date: str) -> List[Dict[str, Any]]:
+    """Search for flights using Amadeus API."""
+    if not FLIGHT_API_KEY or not FLIGHT_API_SECRET:
+        return [{"error": "Flight API credentials not configured"}]
+
+    try:
+        # Get access token
+        access_token = await get_amadeus_token()
+        if not access_token:
+            return [{"error": "Failed to authenticate with Amadeus API"}]
+
+        # Search for flights
+        url = f"{AMADEUS_BASE_URL}/v2/shopping/flight-offers"
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'application/json'
+        }
+
+        # Format date for Amadeus (YYYY-MM-DD)
+        import datetime
+        try:
+            if len(date.split('-')) == 2:
+                month, day = date.split('-')
+                current_year = datetime.datetime.now().year
+                formatted_date = f"{current_year}-{month.zfill(2)}-{day.zfill(2)}"
+            else:
+                formatted_date = date
+        except:
+            formatted_date = "2025-03-05"  # Default date
+
+        params = {
+            'originLocationCode': origin,
+            'destinationLocationCode': destination,
+            'departureDate': formatted_date,
+            'adults': 1,
+            'max': 5
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers, params=params) as response:
                 if response.status == 200:
                     data = await response.json()
-                    if 'data' in data:
+                    if 'data' in data and data['data']:
                         flights = []
-                        for flight in data['data'][:5]:  # Limit to 5 results
+                        for offer in data['data'][:5]:
+                            itinerary = offer['itineraries'][0]
+                            segment = itinerary['segments'][0]
+                            price = offer['price']
+
                             flights.append({
-                                'airline': flight.get('airline', {}).get('name', 'Unknown'),
-                                'flight_number': flight.get('flight', {}).get('number', 'N/A'),
-                                'departure_time': flight.get('departure', {}).get('scheduled', 'N/A'),
-                                'arrival_time': flight.get('arrival', {}).get('scheduled', 'N/A'),
-                                'origin': flight.get('departure', {}).get('airport', 'N/A'),
-                                'destination': flight.get('arrival', {}).get('airport', 'N/A'),
-                                'status': flight.get('flight_status', 'N/A')
+                                'airline': segment['carrierCode'],
+                                'flight_number': f"{segment['carrierCode']}{segment['number']}",
+                                'departure_time': segment['departure']['at'],
+                                'arrival_time': segment['arrival']['at'],
+                                'origin': segment['departure']['iataCode'],
+                                'destination': segment['arrival']['iataCode'],
+                                'price': f"{price['total']} {price['currency']}",
+                                'direct': len(itinerary['segments']) == 1
                             })
                         return flights
                     else:
@@ -130,64 +185,73 @@ async def search_flights_api(origin: str, destination: str, date: str) -> List[D
         return [{"error": f"Flight API request failed: {str(e)}"}]
 
 async def search_hotels_api(city: str, check_in: str, check_out: str, adults: int = 2) -> List[Dict[str, Any]]:
-    """Search for hotels using RapidAPI Hotels API."""
+    """Search for hotels using RapidAPI Booking.com API."""
     if not HOTEL_API_KEY:
         return [{"error": "Hotel API key not configured"}]
 
     try:
-        # First, get destination ID
-        search_url = "https://hotels4.p.rapidapi.com/locations/v3/search"
+        # Use RapidAPI Booking.com API
+        search_url = "https://booking-com.p.rapidapi.com/v1/hotels/search"
         headers = {
             "X-RapidAPI-Key": HOTEL_API_KEY,
-            "X-RapidAPI-Host": "hotels4.p.rapidapi.com"
+            "X-RapidAPI-Host": "booking-com.p.rapidapi.com"
         }
 
-        search_params = {"q": city}
+        # Format dates for Booking.com API (YYYY-MM-DD)
+        import datetime
+        try:
+            # Convert MM-DD to YYYY-MM-DD (assuming current year)
+            current_year = datetime.datetime.now().year
+            if len(check_in.split('-')) == 2:
+                month, day = check_in.split('-')
+                check_in = f"{current_year}-{month.zfill(2)}-{day.zfill(2)}"
+            if len(check_out.split('-')) == 2:
+                month, day = check_out.split('-')
+                check_out = f"{current_year}-{month.zfill(2)}-{day.zfill(2)}"
+        except:
+            # If date parsing fails, use default dates
+            check_in = f"{current_year}-03-05"
+            check_out = f"{current_year}-03-12"
+
+        search_params = {
+            "dest_type": "city",
+            "dest_id": "-1456928",  # Default to Sydney (will be dynamic later)
+            "search_type": "city",
+            "arrival_date": check_in,
+            "departure_date": check_out,
+            "adults": adults,
+            "room_qty": 1,
+            "page_number": 1,
+            "units": "metric",
+            "temperature_unit": "c",
+            "languagecode": "en-us",
+            "currency_code": "USD"
+        }
 
         async with aiohttp.ClientSession() as session:
             async with session.get(search_url, headers=headers, params=search_params) as response:
                 if response.status == 200:
-                    search_data = await response.json()
-                    if 'sr' in search_data and len(search_data['sr']) > 0:
-                        destination_id = search_data['sr'][0].get('gaiaId')
+                    hotels_data = await response.json()
+                    hotels = []
 
-                        if destination_id:
-                            # Now search for hotels
-                            hotels_url = "https://hotels4.p.rapidapi.com/properties/v2/list"
-                            hotels_params = {
-                                "destination": {"regionId": destination_id},
-                                "checkInDate": {"day": int(check_in.split('-')[2]), "month": int(check_in.split('-')[1]), "year": int(check_in.split('-')[0])},
-                                "checkOutDate": {"day": int(check_out.split('-')[2]), "month": int(check_out.split('-')[1]), "year": int(check_out.split('-')[0])},
-                                "rooms": [{"adults": adults}],
-                                "resultsStartingIndex": 0,
-                                "resultsSize": 5,
-                                "sort": "PRICE_LOW_TO_HIGH"
+                    # Parse Booking.com API response
+                    if 'result' in hotels_data:
+                        properties = hotels_data['result'][:5]  # Get first 5 hotels
+                        for prop in properties:
+                            # Extract hotel information
+                            hotel_info = {
+                                'name': prop.get('hotel_name', 'Unknown Hotel'),
+                                'price_per_night': prop.get('min_total_price', 'N/A'),
+                                'currency': prop.get('currency_code', 'USD'),
+                                'rating': prop.get('review_score', 'N/A'),
+                                'location': prop.get('district', city),
+                                'amenities': prop.get('hotel_facilities', [])[:4] if prop.get('hotel_facilities') else ['WiFi', 'Reception']
                             }
+                            hotels.append(hotel_info)
 
-                            async with session.post(hotels_url, headers=headers, json=hotels_params) as hotels_response:
-                                if hotels_response.status == 200:
-                                    hotels_data = await hotels_response.json()
-                                    hotels = []
-                                    if 'data' in hotels_data and 'propertySearch' in hotels_data['data']:
-                                        properties = hotels_data['data']['propertySearch'].get('properties', [])
-                                        for prop in properties[:5]:
-                                            hotels.append({
-                                                'name': prop.get('name', 'Unknown Hotel'),
-                                                'price_per_night': prop.get('price', {}).get('lead', {}).get('amount', 'N/A'),
-                                                'currency': prop.get('price', {}).get('lead', {}).get('currencyInfo', {}).get('code', 'USD'),
-                                                'rating': prop.get('reviews', {}).get('score', 'N/A'),
-                                                'location': prop.get('neighborhood', {}).get('name', city),
-                                                'amenities': [amenity.get('text', '') for amenity in prop.get('amenities', {}).get('topAmenities', {}).get('items', [])][:4]
-                                            })
-                                    return hotels if hotels else [{"error": "No hotels found"}]
-                                else:
-                                    return [{"error": f"Hotels search API error: {hotels_response.status}"}]
-                        else:
-                            return [{"error": "Could not find destination"}]
-                    else:
-                        return [{"error": "Location not found"}]
+                    return hotels if hotels else [{"error": "No hotels found"}]
                 else:
-                    return [{"error": f"Location search API error: {response.status}"}]
+                    return [{"error": f"Hotel search API error: {response.status}"}]
     except Exception as e:
         return [{"error": f"Hotel API request failed: {str(e)}"}]
 

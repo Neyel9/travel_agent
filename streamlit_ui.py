@@ -1,4 +1,5 @@
 from langgraph.types import Command
+from langgraph.errors import NodeInterrupt
 from typing import List, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
@@ -80,6 +81,18 @@ def handle_user_message(user_input: str):
     st.session_state.processing_message = user_input
 
 # Function to invoke the agent graph to interact with the Travel Planning Agent
+def extract_response_from_result(result):
+    """Extract the response from the agent result with fallback logic."""
+    if result.get("final_plan"):
+        return result["final_plan"]
+    
+    # If no final plan, check travel_details for response
+    travel_details = result.get("travel_details", {})
+    if isinstance(travel_details, dict) and travel_details.get("response"):
+        return travel_details["response"]
+    
+    return "I need more information to help you plan your trip. Please provide additional details about your destination, dates, and budget."
+
 async def invoke_agent_graph(user_input: str):
     """
     Run the agent with streaming text for the user_input prompt,
@@ -109,17 +122,7 @@ async def invoke_agent_graph(user_input: str):
 
             # Run the graph and get the final result
             result = await travel_agent_graph.ainvoke(initial_state, config)
-
-            # Check if we have a final plan
-            if result.get("final_plan"):
-                yield result["final_plan"]
-            else:
-                # If no final plan, check travel_details for response
-                travel_details = result.get("travel_details", {})
-                if isinstance(travel_details, dict) and travel_details.get("response"):
-                    yield travel_details["response"]
-                else:
-                    yield "I need more information to help you plan your trip. Please provide additional details about your destination, dates, and budget."
+            yield extract_response_from_result(result)
 
         # Continue the conversation (handle interrupts)
         else:
@@ -127,26 +130,14 @@ async def invoke_agent_graph(user_input: str):
             result = await travel_agent_graph.ainvoke(
                 Command(resume=user_input), config
             )
-
-            # Check if we have a final plan
-            if result.get("final_plan"):
-                yield result["final_plan"]
-            else:
-                # If no final plan, check travel_details for response
-                travel_details = result.get("travel_details", {})
-                if isinstance(travel_details, dict) and travel_details.get("response"):
-                    yield travel_details["response"]
-                else:
-                    yield "I need more information to help you plan your trip. Please provide additional details."
+            yield extract_response_from_result(result)
 
     except Exception as e:
         # Handle NodeInterrupt and other exceptions
-        from langgraph.errors import NodeInterrupt
         if isinstance(e, NodeInterrupt):
             yield "I need more information to help you plan your trip. Please provide additional details."
         else:
             yield f"Sorry, I encountered an error: {str(e)}"
-
 async def main():
     # Sidebar for user preferences
     with st.sidebar:

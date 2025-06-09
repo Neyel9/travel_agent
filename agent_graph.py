@@ -27,6 +27,9 @@ from agents.hotel_agent import HotelDeps
 # We'll import the actual agents lazily to avoid initialization issues
 _agents_cache = {}
 
+# Rate limiting configuration (3 RPM = 20 seconds between calls)
+AGENT_RATE_LIMIT_DELAY = 21
+
 logfire.configure(send_to_logfire='if-token-present')
 
 def get_agents():
@@ -140,8 +143,8 @@ async def get_flight_recommendations(state: TravelState) -> Dict[str, Any]:
     agents = get_agents()
     flight_agent = agents['flight']
 
-    # Add delay to respect rate limits (3 RPM = 20 seconds between calls)
-    await asyncio.sleep(21)
+    # Add delay to respect rate limits
+    await asyncio.sleep(AGENT_RATE_LIMIT_DELAY)
 
     # Call the flight agent
     result = await flight_agent.run(prompt, deps=flight_dependencies)
@@ -169,8 +172,8 @@ async def get_hotel_recommendations(state: TravelState) -> Dict[str, Any]:
     agents = get_agents()
     hotel_agent = agents['hotel']
 
-    # Add delay to respect rate limits (3 RPM = 20 seconds between calls)
-    await asyncio.sleep(21)
+    # Add delay to respect rate limits
+    await asyncio.sleep(AGENT_RATE_LIMIT_DELAY)
 
     # Call the hotel agent
     result = await hotel_agent.run(prompt, deps=hotel_dependencies)
