@@ -91,25 +91,61 @@ async def invoke_agent_graph(user_input: str):
         }
     }
 
-    # First message from user
-    if len(st.session_state.chat_history) == 1:
-        user_context = st.session_state.user_context
-        initial_state = {
-            "user_input": user_input,
-            "preferred_airlines": user_context.preferred_airlines,
-            "hotel_amenities": user_context.hotel_amenities,
-            "budget_level": user_context.budget_level
-        }
-        async for msg in travel_agent_graph.astream(
-                initial_state, config, stream_mode="custom"
-            ):
-                yield msg
-    # Continue the conversation
-    else:
-        async for msg in travel_agent_graph.astream(
-            Command(resume=user_input), config, stream_mode="custom"
-        ):
-            yield msg
+    try:
+        # First message from user
+        if len(st.session_state.chat_history) == 1:
+            user_context = st.session_state.user_context
+            initial_state = {
+                "user_input": user_input,
+                "preferred_airlines": user_context.preferred_airlines,
+                "hotel_amenities": user_context.hotel_amenities,
+                "budget_level": user_context.budget_level,
+                "travel_details": {},
+                "flight_results": [],
+                "hotel_results": [],
+                "activity_results": [],
+                "final_plan": ""
+            }
+
+            # Run the graph and get the final result
+            result = await travel_agent_graph.ainvoke(initial_state, config)
+
+            # Check if we have a final plan
+            if result.get("final_plan"):
+                yield result["final_plan"]
+            else:
+                # If no final plan, check travel_details for response
+                travel_details = result.get("travel_details", {})
+                if isinstance(travel_details, dict) and travel_details.get("response"):
+                    yield travel_details["response"]
+                else:
+                    yield "I need more information to help you plan your trip. Please provide additional details about your destination, dates, and budget."
+
+        # Continue the conversation (handle interrupts)
+        else:
+            # Resume with user input
+            result = await travel_agent_graph.ainvoke(
+                Command(resume=user_input), config
+            )
+
+            # Check if we have a final plan
+            if result.get("final_plan"):
+                yield result["final_plan"]
+            else:
+                # If no final plan, check travel_details for response
+                travel_details = result.get("travel_details", {})
+                if isinstance(travel_details, dict) and travel_details.get("response"):
+                    yield travel_details["response"]
+                else:
+                    yield "I need more information to help you plan your trip. Please provide additional details."
+
+    except Exception as e:
+        # Handle NodeInterrupt and other exceptions
+        from langgraph.errors import NodeInterrupt
+        if isinstance(e, NodeInterrupt):
+            yield "I need more information to help you plan your trip. Please provide additional details."
+        else:
+            yield f"Sorry, I encountered an error: {str(e)}"
 
 async def main():
     # Sidebar for user preferences

@@ -1,4 +1,5 @@
 from pydantic_ai.models.openai import OpenAIModel
+from openai import AsyncOpenAI
 from dotenv import load_dotenv
 import os
 import requests
@@ -10,14 +11,42 @@ import aiohttp
 load_dotenv()
 
 def get_model():
-    llm = os.getenv('MODEL_CHOICE', 'qwen/qwen3-14b:free')
-    base_url = os.getenv('BASE_URL', 'https://openrouter.ai/api/v1')
+    provider_name = os.getenv('PROVIDER', 'OpenAI')
+    llm = os.getenv('MODEL_CHOICE', 'gpt-4o-mini')
+    base_url = os.getenv('BASE_URL', 'https://api.openai.com/v1')
     api_key = os.getenv('LLM_API_KEY', 'no-api-key-provided')
 
+    # Create AsyncOpenAI client based on provider
+    if provider_name == 'OpenRouter':
+        # OpenRouter configuration with required headers
+        client = AsyncOpenAI(
+            base_url=base_url,
+            api_key=api_key,
+            default_headers={
+                "HTTP-Referer": "http://localhost:8501",  # Your site URL
+                "X-Title": "Travel Agent App"  # Your app name
+            }
+        )
+    elif provider_name == 'OpenAI':
+        # Standard OpenAI configuration with rate limiting
+        client = AsyncOpenAI(
+            api_key=api_key,
+            max_retries=3,
+            timeout=60.0
+        )
+    else:
+        # Generic configuration for other providers
+        client = AsyncOpenAI(
+            base_url=base_url,
+            api_key=api_key,
+            max_retries=3,
+            timeout=60.0
+        )
+
+    # Create the model using the async client
     return OpenAIModel(
         llm,
-        base_url=base_url,
-        api_key=api_key
+        openai_client=client
     )
 
 # API Configuration

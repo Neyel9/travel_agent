@@ -85,23 +85,34 @@ HOTEL_API_KEY=your_rapidapi_key
 def test_setup():
     """Test if the setup is working."""
     print("\n🧪 Testing setup...")
-    
+
     try:
+        # Test dependency compatibility first
+        print("   Running compatibility test...")
+        result = subprocess.run([sys.executable, "test_compatibility.py"],
+                              capture_output=True, text=True, timeout=60)
+
+        if result.returncode == 0:
+            print("✅ Dependency compatibility test passed")
+        else:
+            print("⚠️  Some compatibility issues found")
+            print("   Check output above for details")
+
         # Test API integration
-        result = subprocess.run([sys.executable, "test_apis.py"], 
+        print("   Running API integration test...")
+        result = subprocess.run([sys.executable, "test_apis.py"],
                               capture_output=True, text=True, timeout=30)
-        
+
         if result.returncode == 0:
             print("✅ API integration test completed")
-            print("   Check the output above for API status")
         else:
             print("⚠️  API test completed with warnings")
             print("   This is normal if you haven't configured API keys yet")
-            
+
     except subprocess.TimeoutExpired:
-        print("⚠️  API test timed out (this is normal)")
+        print("⚠️  Tests timed out (this can be normal)")
     except FileNotFoundError:
-        print("⚠️  Could not run API test (test_apis.py not found)")
+        print("⚠️  Could not run all tests (some test files not found)")
 
 def print_next_steps():
     """Print instructions for next steps."""

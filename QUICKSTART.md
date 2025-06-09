@@ -104,11 +104,17 @@ python info_gathering_cli.py
 
 ### Dependencies Issues
 ```bash
-# If requirements.txt fails
-pip install pydantic-ai streamlit aiohttp python-dotenv
+# If requirements.txt fails, try upgrading pip first
+python -m pip install --upgrade pip
 
-# If import errors
-pip install --upgrade pydantic-ai langgraph
+# Then install requirements
+pip install -r requirements.txt
+
+# If specific import errors
+pip install --upgrade pydantic-ai langgraph streamlit
+
+# For minimal installation
+pip install -r requirements-minimal.txt
 ```
 
 ### Port Already in Use
